@@ -1,3 +1,4 @@
+
 import pandas as pd
 import io
 from datetime import datetime
@@ -72,35 +73,50 @@ with tab1:
                         # Build cleaned data - keep Position Code as text throughout
                         cleaned_records = []
                         
-                        # Convert Position Code to text format (preserve leading zeros, etc.)
-                        structural_df['Position Code'] = structural_df['Position Code'].apply(
-                            lambda x: str(x).strip() if pd.notna(x) and str(x).strip() not in ['', 'nan'] else ''
-                        )
+                        # Clean position code function - ensures consistent text format
+                        def clean_position_code(x):
+                            if pd.isna(x) or str(x).strip() in ['', 'nan']:
+                                return ''
+                            s = str(x).strip()
+                            # Remove .0 suffix if present (from Excel number formatting)
+                            if '.' in s:
+                                try:
+                                    # Convert to int to remove decimals, then back to string
+                                    return str(int(float(s)))
+                                except:
+                                    return s.split('.')[0]
+                            return s
+                        
+                        # Apply consistent cleaning to both dataframes BEFORE matching
+                        structural_df['Position Code'] = structural_df['Position Code'].apply(clean_position_code)
+                        master_df['Position Code'] = master_df['Position Code'].apply(clean_position_code)
+                        valid_employees['Position Code'] = valid_employees['Position Code'].apply(clean_position_code)
+                        
+                        # Debug: Show sample position codes from both files
+                        st.write("Sample Master Position Codes:", valid_employees['Position Code'].head(10).tolist())
+                        st.write("Sample Structural Position Codes:", structural_df['Position Code'].head(10).tolist())
+                        
+                        matched_count = 0
+                        unmatched_count = 0
+                        unmatched_examples = []
                         
                         for _, emp in valid_employees.iterrows():
-                            raw_pos_code = emp['Position Code']
-                            # Keep as text, don't convert to number
-                            if pd.isna(raw_pos_code) or str(raw_pos_code).strip() in ['', 'nan']:
-                                pos_code = ''
-                            else:
-                                # Convert to string but preserve format (e.g., "0001" stays "0001")
-                                pos_code = str(raw_pos_code).strip()
-                                # If it looks like a number with leading zeros, keep them
-                                if raw_pos_code != pos_code:
-                                    pos_code = str(int(float(raw_pos_code))).zfill(len(str(raw_pos_code).split('.')[0]))
+                            pos_code = emp['Position Code']  # Already cleaned above
                             
                             if pos_code:
                                 struct_match = structural_df[structural_df['Position Code'] == pos_code]
                                 if len(struct_match) > 0:
+                                    matched_count += 1
                                     s = struct_match.iloc[0]
-                                    pos_description = s['Position Name']
-                                    pangkat_struktural = s['Level/Pangkat']
-                                    directorate = s['Directorate']
-                                    division = s['Division']
-                                    department = s['Department']
-                                    cost_center = s['CostCenter']
-                                    dir_group = s['DepartmentGroup']
+                                    pos_description = str(s['Position Name']) if pd.notna(s['Position Name']) else ''
+                                    pangkat_struktural = str(s['Level/Pangkat']) if pd.notna(s['Level/Pangkat']) else ''
+                                    directorate = str(s['Directorate']) if pd.notna(s['Directorate']) else ''
+                                    division = str(s['Division']) if pd.notna(s['Division']) else ''
+                                    department = str(s['Department']) if pd.notna(s['Department']) else ''
+                                    cost_center = str(s['CostCenter']) if pd.notna(s['CostCenter']) else ''
+                                    dir_group = str(s['DepartmentGroup']) if pd.notna(s['DepartmentGroup']) else ''
                                 else:
+                                    unmatched_count += 1
                                     pos_description = pangkat_struktural = directorate = division = department = cost_center = dir_group = ''
                             else:
                                 pos_description = pangkat_struktural = directorate = division = department = cost_center = dir_group = ''
